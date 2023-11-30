@@ -2,7 +2,7 @@ require 'json'
 require 'pry'
 require 'json-schema-generator'
 
-file_name = 'invite_user.har'
+file_name = 'qm.har'
 file = File.read(file_name)
 feature = file_name.split('.')
 ename = feature[0]
@@ -18,8 +18,10 @@ har = JSON.parse(file)
 @init_file.puts "  Given user login via sso using \"business\" credentials"
 @init_file.puts "  And save response path \"$..data.access_token\" as \"ENV:EMAIL_BUSINESS\" at \"access_token\""
 
+base_url = 'https://staging-backend-esign.mekari.io/core/api/v1/'
+
 har['log']['entries'].each do |item|
-  if item['request']['url'].include? 'https://sandbox-backend-esign.mekari.io/core/api/v1/'
+  if item['request']['url'].include? base_url
     puts "=========================================="
     puts "*********************************" if item['request']['method'] == 'POST'
     puts "method : #{item['request']['method']}"
@@ -35,28 +37,29 @@ har['log']['entries'].each do |item|
     puts "status : #{item['response']['status']}"
     puts "response body : #{item['response']['content']['text']}"
 
-
+    path = item['request']['url'].sub(base_url, '')
+    json_file = path.gsub('/','-')
     if item['request'].keys.include? 'postData'
       if !item['request']['postData']['text'].empty?
             
-        @init_file.puts "  When client sends a #{item['request']['method']} request to \"#{item['request']['url']}\" with body:"
+        @init_file.puts "  When user sends a #{item['request']['method']} request to \"#{path}\" with body:"
         @init_file.puts "  \"\"\""
         @init_file.puts "    #{item['request']['postData']['text']}"
         @init_file.puts "  \"\"\""
       else
-        @init_file.puts "  When client sends a #{item['request']['method']} request to \"#{item['request']['url']}\""
+        @init_file.puts "  When user sends a #{item['request']['method']} request to \"#{path}\""
       end
     else
-      @init_file.puts "  When client sends a #{item['request']['method']} request to \"#{item['request']['url']}\""
+      @init_file.puts "  When user sends a #{item['request']['method']} request to \"#{path}\""
     end
 
-    @init_file.puts "  Then response status should be \"#{item['response']['status']} \""
+    @init_file.puts "  Then the response code should be \"#{item['response']['status']}\""
     if item['response']['content']['text'].nil?
     else
-      @init_file.puts "  And response equal with schema \"#{ename}.json\""
+      @init_file.puts "  And the JSON response should follow schema \"#{json_file}.json\""
       json_string = JSON::SchemaGenerator.generate file, item['response']['content']['text'], {:schema_version => 'draft4'}
-      # File.open($json_schema + "/json_schema/#{ename}.json", 'w') {|f| f.write(json_string) }
-      File.open(Dir.pwd + "/#{ename}.json", 'w') {|f| f.write(json_string) }
+      File.open("#{json_file}.json", 'w') {|f| f.write(json_string) }
+      File.open(Dir.pwd + "/#{json_file}.json", 'w') {|f| f.write(json_string) }
     end
 
   end
